@@ -42,7 +42,6 @@
 <body class="font-mono h-screen flex flex-col items-center p-4">
 
     <div class="w-full max-w-6xl flex flex-col items-center">
-        <!-- タイトル部分からサブテキストを削除 -->
         <h1 class="text-3xl md:text-4xl font-bold mb-6 tracking-widest text-center mt-4 uppercase text-white">Drum Etude</h1>
         
         <div class="flex flex-wrap justify-center items-center gap-4 mb-6 bg-gray-900 p-4 rounded-lg border border-gray-800 shadow-xl">
@@ -210,7 +209,11 @@
                 }
             }
             for(let i = 0; i < STEPS - 24; i += 6) { if(basic.BD[i] && Math.random() > 0.6) { basic.BD[i+6] = 1; if(Math.random() > 0.6) basic.BD[i+12] = 1; } }
-            basicPatternData = applyFTRuleToPattern(basic);
+            
+            // ルールの適用 (アクセント制限含む)
+            basic = applyFTRuleToPattern(basic);
+            basic = applyAccentRule(basic);
+            basicPatternData = basic;
 
             let glitch = clonePattern(basicPatternData);
             for(let bar = 0; bar < BARS; bar++) {
@@ -244,13 +247,45 @@
                     }
                 }
             }
-            glitchPatternData = applyFTRuleToPattern(glitch);
+            
+            // ルールの再適用 (アクセント制限含む)
+            glitch = applyFTRuleToPattern(glitch);
+            glitch = applyAccentRule(glitch);
+            glitchPatternData = glitch;
+            
             updateCurrentPatternFromStorage();
         }
 
         function updateCurrentPatternFromStorage() {
             currentPattern = clonePattern(currentMode === 'basic' ? basicPatternData : glitchPatternData);
             renderGrid(); renderScore();
+        }
+
+        /** [新規] 1拍の中にアクセントは2つまでのルールを適用 */
+        function applyAccentRule(p) {
+            for (let bar = 0; bar < BARS; bar++) {
+                for (let beat = 0; beat < 4; beat++) {
+                    let start = (bar * STEPS_PER_BAR) + (beat * 24);
+                    let accents = [];
+                    for (let i = 0; i < 24; i++) {
+                        if (p.SD[start + i] === SD_ACCENT) accents.push(start + i);
+                    }
+                    // 3つ以上のアクセントがある場合、2つに絞る
+                    if (accents.length > 2) {
+                        // 拍の頭や8分音符の位置にあるものを優先的に残す
+                        accents.sort((a, b) => {
+                            let priA = (a % 12 === 0) ? 0 : ((a % 6 === 0) ? 1 : 2);
+                            let priB = (b % 12 === 0) ? 0 : ((b % 6 === 0) ? 1 : 2);
+                            return priA - priB;
+                        });
+                        // 優先順位の低いものをゴーストノートに変換
+                        for (let j = 2; j < accents.length; j++) {
+                            p.SD[accents[j]] = SD_GHOST;
+                        }
+                    }
+                }
+            }
+            return p;
         }
 
         function applyFTRuleToPattern(p) {
@@ -411,7 +446,11 @@
                 for(let i = 0; i < STEPS; i++) {
                     const cell = document.createElement('div'); cell.className = `grid-cell`;
                     cell.addEventListener('click', () => {
-                        if (inst === 'SD') currentPattern.SD[i] = (currentPattern.SD[i] + 1) % 3;
+                        if (inst === 'SD') {
+                            currentPattern.SD[i] = (currentPattern.SD[i] + 1) % 3;
+                            // 手動編集時も拍内アクセント制限をかける
+                            applyAccentRule(currentPattern);
+                        }
                         else currentPattern[inst][i] = currentPattern[inst][i] ? 0 : 1;
                         renderGrid(); renderScore(); 
                     });
