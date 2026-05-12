@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IDM Drum Etude Generator (Professional Sounds)</title>
+    <title>IDM Drum Etude Generator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 楽譜レンダリング用ライブラリ ABCJS -->
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-basic-min.js"></script>
@@ -42,7 +42,8 @@
 <body class="font-mono h-screen flex flex-col items-center p-4">
 
     <div class="w-full max-w-6xl flex flex-col items-center">
-        <h1 class="text-3xl md:text-4xl font-bold mb-2 tracking-widest text-center mt-4 uppercase">Drum Etude<br><span class="text-xl text-gray-400 font-normal italic">Professional IDM Engine</span></h1>
+        <!-- タイトル部分からサブテキストを削除 -->
+        <h1 class="text-3xl md:text-4xl font-bold mb-6 tracking-widest text-center mt-4 uppercase text-white">Drum Etude</h1>
         
         <div class="flex flex-wrap justify-center items-center gap-4 mb-6 bg-gray-900 p-4 rounded-lg border border-gray-800 shadow-xl">
             <div class="flex gap-2">
@@ -76,7 +77,10 @@
             <h2 class="text-[10px] text-gray-500 mb-2 font-bold tracking-widest text-center uppercase">Sequence Editor (Snare: Click to toggle Dynamics)</h2>
             <div class="flex">
                 <div class="flex flex-col justify-between pr-4 font-bold text-[10px] text-gray-400 w-8 flex-shrink-0" id="labels">
-                    <div class="h-7 flex items-center justify-center">HH</div><div class="h-7 flex items-center justify-center">SD</div><div class="h-7 flex items-center justify-center">FT</div><div class="h-7 flex items-center justify-center">BD</div>
+                    <div class="h-7 flex items-center justify-center text-[10px]">HH</div>
+                    <div class="h-7 flex items-center justify-center text-[10px]">SD</div>
+                    <div class="h-7 flex items-center justify-center text-[10px]">FT</div>
+                    <div class="h-7 flex items-center justify-center text-[10px]">BD</div>
                 </div>
                 <div class="grid grid-rows-4 gap-y-1 flex-grow" id="sequencer-grid"></div>
             </div>
@@ -135,37 +139,43 @@
             if (level === SD_OFF) return;
             const isGhost = (level === SD_GHOST);
             
-            // 1. Body (Drum tone)
-            if (!isGhost) {
-                const osc = audioCtx.createOscillator(); const oscGain = audioCtx.createGain();
-                osc.type = 'triangle'; osc.connect(oscGain); oscGain.connect(audioCtx.destination);
-                // Accent: Punchy pitch sweep
+            const osc = audioCtx.createOscillator(); 
+            const oscGain = audioCtx.createGain();
+            osc.type = 'triangle'; 
+            osc.connect(oscGain); 
+            oscGain.connect(audioCtx.destination);
+
+            if (isGhost) {
+                osc.frequency.setValueAtTime(450, time);
+                oscGain.gain.setValueAtTime(0.12 * vol, time);
+                oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.025);
+            } else {
                 osc.frequency.setValueAtTime(250, time);
                 osc.frequency.exponentialRampToValueAtTime(160, time + 0.08);
-                oscGain.gain.setValueAtTime(0.7 * vol, time);
+                oscGain.gain.setValueAtTime(0.8 * vol, time);
                 oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-                osc.start(time); osc.stop(time + 0.2);
             }
+            osc.start(time); osc.stop(time + 0.2);
 
-            // 2. Snappy (Wire noise)
-            const noise = audioCtx.createBufferSource(); noise.buffer = noiseBuffer;
+            const noise = audioCtx.createBufferSource(); 
+            noise.buffer = noiseBuffer;
             const noiseFilter = audioCtx.createBiquadFilter(); 
             const noiseGain = audioCtx.createGain();
-            noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(audioCtx.destination);
+            noise.connect(noiseFilter); 
+            noiseFilter.connect(noiseGain); 
+            noiseGain.connect(audioCtx.destination);
             
             if (isGhost) {
-                // Ghost: Light crisp snap, no body "pon"
                 noiseFilter.type = 'bandpass';
-                noiseFilter.frequency.setValueAtTime(5000, time);
-                noiseFilter.Q.value = 1.0;
-                noiseGain.gain.setValueAtTime(0.2 * vol, time);
-                noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+                noiseFilter.frequency.setValueAtTime(6000, time);
+                noiseFilter.Q.value = 1.5;
+                noiseGain.gain.setValueAtTime(0.6 * vol, time); 
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
             } else {
-                // Accent: Broad broadband noise
                 noiseFilter.type = 'highpass';
                 noiseFilter.frequency.setValueAtTime(1000, time);
-                noiseGain.gain.setValueAtTime(0.6 * vol, time);
-                noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+                noiseGain.gain.setValueAtTime(0.75 * vol, time);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
             }
             noise.start(time); noise.stop(time + 0.3);
         }
@@ -200,32 +210,36 @@
                 }
             }
             for(let i = 0; i < STEPS - 24; i += 6) { if(basic.BD[i] && Math.random() > 0.6) { basic.BD[i+6] = 1; if(Math.random() > 0.6) basic.BD[i+12] = 1; } }
-            basic = applyFTRuleToPattern(basic);
-            basicPatternData = basic;
+            basicPatternData = applyFTRuleToPattern(basic);
 
-            let glitch = clonePattern(basic);
+            let glitch = clonePattern(basicPatternData);
             for(let bar = 0; bar < BARS; bar++) {
                 let barStart = bar * STEPS_PER_BAR;
-                for(let i = 0; i < STEPS_PER_BAR; i += 6) {
-                    let step = barStart + i;
-                    if((glitch.SD[step] === SD_ACCENT || glitch.HH[step] === 1) && Math.random() > 0.85) {
-                        let len = Math.floor(Math.random() * 4) + 4;
-                        let inst = glitch.SD[step] !== SD_OFF ? 'SD' : 'HH';
-                        for(let k=0; k<len; k++) {
-                            let rStep = step + k*3; if(rStep < barStart + STEPS_PER_BAR) {
-                                if(inst === 'SD') glitch.SD[rStep] = SD_GHOST; else glitch.HH[rStep] = 1;
+                for(let beat = 0; beat < 4; beat++) {
+                    let beatStart = barStart + beat * 24;
+                    let r = Math.random();
+                    if(r > 0.6) {
+                        glitch.SD.fill(SD_OFF, beatStart, beatStart + 24);
+                        glitch.BD.fill(0, beatStart, beatStart + 24);
+                        glitch.FT.fill(0, beatStart, beatStart + 24);
+                        let type = Math.random();
+                        if (type > 0.7) {
+                            let target = Math.random() > 0.5 ? 'SD' : 'BD';
+                            for(let i=0; i<24; i+=3) {
+                                if (target === 'SD') glitch.SD[beatStart + i] = (i % 6 === 0) ? SD_ACCENT : SD_GHOST;
+                                else glitch.BD[beatStart + i] = 1;
                             }
-                        }
-                    }
-                }
-                if(Math.random() > 0.6) {
-                    let sliceStart = barStart + Math.floor(Math.random() * 4) * 24;
-                    for(let k=0; k<12; k++) {
-                        if(sliceStart + 12 + k < STEPS) {
-                            glitch.HH[sliceStart+12+k] = glitch.HH[sliceStart+k];
-                            glitch.SD[sliceStart+12+k] = glitch.SD[sliceStart+k];
-                            glitch.BD[sliceStart+12+k] = glitch.BD[sliceStart+k];
-                            glitch.FT[sliceStart+12+k] = glitch.FT[sliceStart+k];
+                        } else if (type > 0.4) {
+                            let target = Math.random() > 0.5 ? 'SD' : 'BD';
+                            for(let i=0; i<24; i+=4) {
+                                if (target === 'SD') glitch.SD[beatStart + i] = (i % 8 === 0) ? SD_ACCENT : SD_GHOST;
+                                else glitch.BD[beatStart + i] = 1;
+                            }
+                        } else {
+                            for(let i=0; i<24; i+=8) {
+                                if (Math.random() > 0.5) glitch.BD[beatStart + i] = 1;
+                                else glitch.SD[beatStart + i] = SD_ACCENT;
+                            }
                         }
                     }
                 }
@@ -240,6 +254,7 @@
         }
 
         function applyFTRuleToPattern(p) {
+            for(let i = 0; i < STEPS; i++) { if(p.FT[i]) { p.BD[i] = 1; p.FT[i] = 0; } }
             let bdIndices = []; for(let i = 0; i < STEPS; i++) if(p.BD[i]) bdIndices.push(i);
             let groups = []; let currentGroup = [];
             for(let i = 0; i < bdIndices.length; i++) {
@@ -250,22 +265,50 @@
                 }
             }
             if(currentGroup.length > 0) groups.push(currentGroup);
+            
             groups.forEach(group => {
                 if(group.length >= 3) {
-                    let assignment = []; let consecutiveBD = 0; const style = Math.random();
+                    let assignment = [];
+                    let consecutiveBD = 0;
+                    let lastInstrument = null;
+
                     for(let k = 0; k < group.length; k++) {
-                        let pick = (style < 0.3) ? ((k % 4 < 2) ? 'BD' : 'FT') : ((style < 0.6) ? ((k % 4 < 2) ? 'FT' : 'BD') : ((consecutiveBD >= 2) ? 'FT' : (Math.random() > 0.5 ? 'FT' : 'BD')));
-                        if (pick === 'BD' && consecutiveBD >= 2) pick = 'FT';
-                        assignment.push(pick); if (pick === 'BD') consecutiveBD++; else consecutiveBD = 0;
+                        let step = group[k];
+                        let canBeFT = true;
+                        let canBeBD = true;
+
+                        if (step % STEPS_PER_BAR === 0) canBeFT = false;
+                        if (lastInstrument === 'FT') canBeFT = false;
+                        if (consecutiveBD >= 2) canBeBD = false;
+
+                        let pick = 'BD';
+                        if (!canBeBD) pick = 'FT';
+                        else if (!canBeFT) pick = 'BD';
+                        else pick = Math.random() > 0.5 ? 'FT' : 'BD';
+
+                        assignment.push(pick);
+                        lastInstrument = pick;
+                        if (pick === 'BD') consecutiveBD++; else consecutiveBD = 0;
                     }
-                    if (!assignment.includes('FT')) assignment[assignment.length - 1] = 'FT';
+
+                    if (!assignment.includes('FT')) {
+                        for(let k = 0; k < assignment.length; k++) {
+                            if (group[k] % STEPS_PER_BAR !== 0) {
+                                let prevIsFT = (k > 0 && assignment[k-1] === 'FT');
+                                let nextIsFT = (k < assignment.length - 1 && assignment[k+1] === 'FT');
+                                if (!prevIsFT && !nextIsFT) {
+                                    assignment[k] = 'FT';
+                                    break; 
+                                }
+                            }
+                        }
+                    }
                     for(let k = 0; k < group.length; k++) { p.BD[group[k]] = 0; p[assignment[k]][group[k]] = 1; }
                 }
             });
             return p;
         }
 
-        // --- Notation & PDF ---
         function formatNote(note, len32) {
             if (note === "z") {
                 let res = ""; let rem = len32;
@@ -348,7 +391,6 @@
             html2pdf().set(opt).from(element).save();
         }
 
-        // --- UI Setup ---
         const gridContainer = document.getElementById('sequencer-grid');
         const scaleGrid = document.getElementById('scale-grid');
         let domCells = { HH: [], SD: [], FT: [], BD: [] };
@@ -391,7 +433,6 @@
             });
         }
 
-        // --- Playback Control ---
         let isPlaying = false, isLooping = true, currentStep = 0, nextNoteTime = 0, timerID, bpm = 120;
         let drawQueue = []; 
 
@@ -402,7 +443,7 @@
 
         function scheduleNote(stepNumber, time) {
             drawQueue.push({ step: stepNumber, time: time });
-            let vol = currentMode === 'glitch' ? (Math.random() * 0.4 + 0.8) : 1.0;
+            let vol = currentMode === 'glitch' ? (Math.random() * 0.3 + 0.7) : 1.0;
             if (currentPattern.HH[stepNumber]) playHH(time, vol);
             if (currentPattern.SD[stepNumber] !== SD_OFF) playSD(time, currentPattern.SD[stepNumber], vol);
             if (currentPattern.FT[stepNumber]) playFT(time, vol);
@@ -429,7 +470,6 @@
 
         function stopPlayback() { isPlaying = false; cancelAnimationFrame(timerID); for(let i=0; i<STEPS; i++) instruments.forEach(inst => domCells[inst][i].classList.remove('playing-col')); }
 
-        // --- Event Listeners ---
         document.getElementById('btn-mode-basic').addEventListener('click', () => {
             currentMode = 'basic'; document.getElementById('btn-mode-basic').classList.add('mode-active'); document.getElementById('btn-mode-glitch').classList.remove('mode-active');
             updateCurrentPatternFromStorage();
