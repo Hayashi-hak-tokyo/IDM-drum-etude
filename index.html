@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IDM Drum Etude Generator (PDF Export Edition)</title>
+    <title>IDM Drum Etude Generator (Professional Sounds)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 楽譜レンダリング用ライブラリ ABCJS -->
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-basic-min.js"></script>
@@ -18,8 +18,20 @@
         .grid-cell:nth-child(24n+1) { border-left: 2px solid #666; }
         .grid-cell:nth-child(96n+1) { border-left: 2px solid #888; box-shadow: -2px 0 5px rgba(255,255,255,0.1); }
         .grid-cell.active-HH { background-color: #facc15; box-shadow: 0 0 8px #facc15; }
-        .grid-cell.active-SD-ghost { background-color: #0ea5e9; opacity: 0.45; transform: scale(0.65); border: none; }
-        .grid-cell.active-SD-accent { background-color: #38bdf8; box-shadow: 0 0 15px #38bdf8, inset 0 0 5px white; border: 1px solid white; }
+        
+        /* スネアのコントラスト強化 */
+        .grid-cell.active-SD-ghost { 
+            background-color: #0ea5e9; 
+            opacity: 0.35; 
+            transform: scale(0.65); 
+            border: none;
+        }
+        .grid-cell.active-SD-accent { 
+            background-color: #38bdf8; 
+            box-shadow: 0 0 15px #38bdf8, inset 0 0 5px white; 
+            border: 1px solid white;
+        }
+        
         .grid-cell.active-FT { background-color: #a855f7; box-shadow: 0 0 8px #a855f7; }
         .grid-cell.active-BD { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
         .playing-col { background-color: rgba(255, 255, 255, 0.2); transform: scale(1.05); border-bottom: 2px solid #00ff00; }
@@ -30,7 +42,7 @@
 <body class="font-mono h-screen flex flex-col items-center p-4">
 
     <div class="w-full max-w-6xl flex flex-col items-center">
-        <h1 class="text-3xl md:text-4xl font-bold mb-2 tracking-widest text-center mt-4 uppercase">Drum Etude<br><span class="text-xl text-gray-400 font-normal italic">IDM Extreme Orchestration</span></h1>
+        <h1 class="text-3xl md:text-4xl font-bold mb-2 tracking-widest text-center mt-4 uppercase">Drum Etude<br><span class="text-xl text-gray-400 font-normal italic">Professional IDM Engine</span></h1>
         
         <div class="flex flex-wrap justify-center items-center gap-4 mb-6 bg-gray-900 p-4 rounded-lg border border-gray-800 shadow-xl">
             <div class="flex gap-2">
@@ -56,13 +68,12 @@
             </div>
         </div>
 
-        <!-- 楽譜表示エリア -->
         <div class="w-full bg-white rounded-lg shadow-2xl mb-6 border-4 border-gray-300 overflow-hidden relative min-h-[160px]">
             <div id="paper" class="w-full overflow-x-auto"></div>
         </div>
 
         <div class="w-full overflow-x-auto bg-[#0a0a0a] p-4 rounded-lg border border-gray-800 shadow-xl mb-12">
-            <h2 class="text-[10px] text-gray-500 mb-2 font-bold tracking-widest text-center uppercase">Sequence Editor</h2>
+            <h2 class="text-[10px] text-gray-500 mb-2 font-bold tracking-widest text-center uppercase">Sequence Editor (Snare: Click to toggle Dynamics)</h2>
             <div class="flex">
                 <div class="flex flex-col justify-between pr-4 font-bold text-[10px] text-gray-400 w-8 flex-shrink-0" id="labels">
                     <div class="h-7 flex items-center justify-center">HH</div><div class="h-7 flex items-center justify-center">SD</div><div class="h-7 flex items-center justify-center">FT</div><div class="h-7 flex items-center justify-center">BD</div>
@@ -123,24 +134,40 @@
         function playSD(time, level, vol = 1.0) {
             if (level === SD_OFF) return;
             const isGhost = (level === SD_GHOST);
-            const osc = audioCtx.createOscillator(); const oscGain = audioCtx.createGain();
-            osc.type = 'triangle'; osc.connect(oscGain); oscGain.connect(audioCtx.destination);
-            osc.frequency.setValueAtTime(isGhost ? 380 : 250, time);
-            oscGain.gain.setValueAtTime(isGhost ? 0.25 * vol : 0.85 * vol, time);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, time + (isGhost ? 0.05 : 0.15));
-            osc.start(time); osc.stop(time + 0.2);
+            
+            // 1. Body (Drum tone)
+            if (!isGhost) {
+                const osc = audioCtx.createOscillator(); const oscGain = audioCtx.createGain();
+                osc.type = 'triangle'; osc.connect(oscGain); oscGain.connect(audioCtx.destination);
+                // Accent: Punchy pitch sweep
+                osc.frequency.setValueAtTime(250, time);
+                osc.frequency.exponentialRampToValueAtTime(160, time + 0.08);
+                oscGain.gain.setValueAtTime(0.7 * vol, time);
+                oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+                osc.start(time); osc.stop(time + 0.2);
+            }
+
+            // 2. Snappy (Wire noise)
             const noise = audioCtx.createBufferSource(); noise.buffer = noiseBuffer;
-            const noiseFilter = audioCtx.createBiquadFilter(); noiseFilter.type = 'highpass'; 
+            const noiseFilter = audioCtx.createBiquadFilter(); 
             const noiseGain = audioCtx.createGain();
             noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(audioCtx.destination);
+            
             if (isGhost) {
-                noiseFilter.frequency.value = 5000; noiseGain.gain.setValueAtTime(0.25 * vol, time);
-                noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
+                // Ghost: Light crisp snap, no body "pon"
+                noiseFilter.type = 'bandpass';
+                noiseFilter.frequency.setValueAtTime(5000, time);
+                noiseFilter.Q.value = 1.0;
+                noiseGain.gain.setValueAtTime(0.2 * vol, time);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
             } else {
-                noiseFilter.frequency.value = 1200; noiseGain.gain.setValueAtTime(0.7 * vol, time);
+                // Accent: Broad broadband noise
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.setValueAtTime(1000, time);
+                noiseGain.gain.setValueAtTime(0.6 * vol, time);
                 noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
             }
-            noise.start(time); noise.stop(time + 0.2);
+            noise.start(time); noise.stop(time + 0.3);
         }
 
         function playHH(time, vol = 1.0) {
@@ -168,7 +195,7 @@
                     let step = offset + i;
                     if (basic.SD[step] === SD_OFF && basic.BD[step] === 0) {
                         let distToBackbeat = Math.min(Math.abs(i-24), Math.abs(i-72));
-                        if (distToBackbeat <= 6 && Math.random() < 0.8) basic.SD[step] = SD_GHOST;
+                        if (distToBackbeat <= 12 && Math.random() < 0.75) basic.SD[step] = SD_GHOST;
                     }
                 }
             }
@@ -176,7 +203,6 @@
             basic = applyFTRuleToPattern(basic);
             basicPatternData = basic;
 
-            // --- IDM-ification ---
             let glitch = clonePattern(basic);
             for(let bar = 0; bar < BARS; bar++) {
                 let barStart = bar * STEPS_PER_BAR;
@@ -269,7 +295,7 @@
                 let str = "(3"; for(let i=0; i<3; i++) { let ev = beatEvents[i*8]; str += (ev.length === 0 ? "z" : (ev.length === 1 ? ev[0] : `[${ev.join("")}]`)) + "2"; }
                 return str;
             } else {
-                let str = "", currentLen = 0, currentNote = "";
+                let str = ""; let currentLen = 0; let currentNote = "";
                 let unit = has32nd ? 3 : 6; let count = has32nd ? 8 : 4;
                 for(let i=0; i<count; i++) {
                     let ev = beatEvents[i*unit]; let noteStr = ev.length === 0 ? "z" : (ev.length === 1 ? ev[0] : `[${ev.join("")}]`);
@@ -308,17 +334,16 @@
             ABCJS.renderAbc("paper", abcString + abcVoice, { responsive: "resize", add_classes: true, staffwidth: 800 });
         }
 
-        // PDFへの書き出し機能
         function exportPDF() {
             const element = document.getElementById('paper');
             const modeName = currentMode.toUpperCase();
             const timestamp = new Date().toISOString().slice(0,10);
             const opt = {
-                margin:       15,
-                filename:     `DrumEtude_${modeName}_${timestamp}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                margin: 15,
+                filename: `DrumEtude_${modeName}_${timestamp}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
             };
             html2pdf().set(opt).from(element).save();
         }
