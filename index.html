@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IDM Drum Etude Generator (Extreme Glitch Edition)</title>
+    <title>IDM Drum Etude Generator (PDF Export Edition)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 楽譜レンダリング用ライブラリ ABCJS -->
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-basic-min.js"></script>
+    <!-- PDF生成用ライブラリ html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { background-color: #050505; color: #00ff00; }
-        #paper { background-color: #fdfdfd; border-radius: 8px; padding: 10px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); color: #000; }
+        #paper { background-color: #fdfdfd; border-radius: 8px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); color: #000; }
         .abcjs-container { fill: #000; stroke: #000; }
         .grid-cell { background-color: #111; border: 1px solid #222; border-radius: 1px; height: 28px; transition: all 0.05s; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .grid-cell:nth-child(6n+1) { border-left: 1px solid #444; }
@@ -31,11 +34,13 @@
         
         <div class="flex flex-wrap justify-center items-center gap-4 mb-6 bg-gray-900 p-4 rounded-lg border border-gray-800 shadow-xl">
             <div class="flex gap-2">
-                <button id="btn-mode-basic" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded font-bold border border-gray-600 transition uppercase text-xs mode-active">Basic View</button>
-                <button id="btn-mode-glitch" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded font-bold border border-gray-600 transition uppercase text-xs">Glitch View</button>
+                <button id="btn-mode-basic" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded font-bold border border-gray-600 transition uppercase text-xs mode-active">Basic View</button>
+                <button id="btn-mode-glitch" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded font-bold border border-gray-600 transition uppercase text-xs">Glitch View</button>
             </div>
 
-            <button id="btn-generate" class="px-6 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded font-black border border-blue-400 transition uppercase text-sm shadow-lg">New Generate 🎲</button>
+            <button id="btn-generate" class="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded font-black border border-blue-400 transition uppercase text-sm shadow-lg">Generate 🎲</button>
+
+            <button id="btn-pdf" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded font-bold border border-gray-500 transition uppercase text-sm">Export PDF 📄</button>
 
             <div class="w-px bg-gray-700 h-8 mx-1"></div>
             
@@ -46,11 +51,12 @@
 
             <div class="flex items-center ml-2">
                 <label for="bpm-slider" class="mr-2 text-xs text-gray-400 font-bold">BPM:</label>
-                <input type="range" id="bpm-slider" min="60" max="240" value="120" class="w-24 cursor-pointer">
+                <input type="range" id="bpm-slider" min="60" max="240" value="120" class="w-20 cursor-pointer">
                 <span id="bpm-display" class="ml-2 w-8 text-right text-sm font-bold text-green-400">120</span>
             </div>
         </div>
 
+        <!-- 楽譜表示エリア -->
         <div class="w-full bg-white rounded-lg shadow-2xl mb-6 border-4 border-gray-300 overflow-hidden relative min-h-[160px]">
             <div id="paper" class="w-full overflow-x-auto"></div>
         </div>
@@ -170,15 +176,14 @@
             basic = applyFTRuleToPattern(basic);
             basicPatternData = basic;
 
-            // --- IDM-ification (Revamped Glitch) ---
+            // --- IDM-ification ---
             let glitch = clonePattern(basic);
             for(let bar = 0; bar < BARS; bar++) {
                 let barStart = bar * STEPS_PER_BAR;
-                // A. Random Retriggers (32nd rolls with velocity ramp)
                 for(let i = 0; i < STEPS_PER_BAR; i += 6) {
                     let step = barStart + i;
                     if((glitch.SD[step] === SD_ACCENT || glitch.HH[step] === 1) && Math.random() > 0.85) {
-                        let len = Math.floor(Math.random() * 4) + 4; // 4-8 hits
+                        let len = Math.floor(Math.random() * 4) + 4;
                         let inst = glitch.SD[step] !== SD_OFF ? 'SD' : 'HH';
                         for(let k=0; k<len; k++) {
                             let rStep = step + k*3; if(rStep < barStart + STEPS_PER_BAR) {
@@ -187,10 +192,8 @@
                         }
                     }
                 }
-                // B. Beat Slice/Repeat (Squarepusher style stutter)
                 if(Math.random() > 0.6) {
                     let sliceStart = barStart + Math.floor(Math.random() * 4) * 24;
-                    let sliceEnd = sliceStart + 12;
                     for(let k=0; k<12; k++) {
                         if(sliceStart + 12 + k < STEPS) {
                             glitch.HH[sliceStart+12+k] = glitch.HH[sliceStart+k];
@@ -236,7 +239,7 @@
             return p;
         }
 
-        // --- Notation ---
+        // --- Notation & PDF ---
         function formatNote(note, len32) {
             if (note === "z") {
                 let res = ""; let rem = len32;
@@ -280,7 +283,8 @@
         }
 
         function renderScore() {
-            let abcString = `X:1\nT:IDM Drum Etude\nM:4/4\nL:1/16\nK:perc\n`;
+            let modeTitle = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
+            let abcString = `X:1\nT:Drum Etude - ${modeTitle} Mode\nM:4/4\nL:1/16\nK:perc\n`;
             abcString += `V:1 clef=perc\n`; abcString += `[| `; 
             let abcVoice = "";
             for(let bar = 0; bar < BARS; bar++) {
@@ -304,7 +308,22 @@
             ABCJS.renderAbc("paper", abcString + abcVoice, { responsive: "resize", add_classes: true, staffwidth: 800 });
         }
 
-        // --- UI ---
+        // PDFへの書き出し機能
+        function exportPDF() {
+            const element = document.getElementById('paper');
+            const modeName = currentMode.toUpperCase();
+            const timestamp = new Date().toISOString().slice(0,10);
+            const opt = {
+                margin:       15,
+                filename:     `DrumEtude_${modeName}_${timestamp}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // --- UI Setup ---
         const gridContainer = document.getElementById('sequencer-grid');
         const scaleGrid = document.getElementById('scale-grid');
         let domCells = { HH: [], SD: [], FT: [], BD: [] };
@@ -347,7 +366,7 @@
             });
         }
 
-        // --- Playback ---
+        // --- Playback Control ---
         let isPlaying = false, isLooping = true, currentStep = 0, nextNoteTime = 0, timerID, bpm = 120;
         let drawQueue = []; 
 
@@ -358,7 +377,6 @@
 
         function scheduleNote(stepNumber, time) {
             drawQueue.push({ step: stepNumber, time: time });
-            // Velocity simulation for Glitch Mode (random slight variation)
             let vol = currentMode === 'glitch' ? (Math.random() * 0.4 + 0.8) : 1.0;
             if (currentPattern.HH[stepNumber]) playHH(time, vol);
             if (currentPattern.SD[stepNumber] !== SD_OFF) playSD(time, currentPattern.SD[stepNumber], vol);
@@ -386,17 +404,17 @@
 
         function stopPlayback() { isPlaying = false; cancelAnimationFrame(timerID); for(let i=0; i<STEPS; i++) instruments.forEach(inst => domCells[inst][i].classList.remove('playing-col')); }
 
+        // --- Event Listeners ---
         document.getElementById('btn-mode-basic').addEventListener('click', () => {
             currentMode = 'basic'; document.getElementById('btn-mode-basic').classList.add('mode-active'); document.getElementById('btn-mode-glitch').classList.remove('mode-active');
             updateCurrentPatternFromStorage();
         });
-
         document.getElementById('btn-mode-glitch').addEventListener('click', () => {
             currentMode = 'glitch'; document.getElementById('btn-mode-glitch').classList.add('mode-active'); document.getElementById('btn-mode-basic').classList.remove('mode-active');
             updateCurrentPatternFromStorage();
         });
-
         document.getElementById('btn-generate').addEventListener('click', generateData);
+        document.getElementById('btn-pdf').addEventListener('click', exportPDF);
         document.getElementById('btn-play').addEventListener('click', () => { 
             initAudio(); if(audioCtx.state === 'suspended') audioCtx.resume();
             if(!isPlaying) { isPlaying = true; currentStep = 0; nextNoteTime = audioCtx.currentTime + 0.05; drawQueue = []; scheduler(); drawLoop(); }
